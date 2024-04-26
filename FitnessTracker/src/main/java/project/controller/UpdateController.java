@@ -5,6 +5,9 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
@@ -34,7 +37,8 @@ public class UpdateController {
 		
 		if (update.hasMessage()) {
 			defineCommand(update.getMessage());
-		} else if (update.hasCallbackQuery()) {
+		}
+		else if (update.hasCallbackQuery()) {
             String callbackData = update.getCallbackQuery().getData();
             
             SendMessage response = new SendMessage();
@@ -48,17 +52,19 @@ public class UpdateController {
             	response.setChatId(update.getCallbackQuery().getMessage().getChatId());
             	response.setText("(Тестовое) Вы нажали \"нет\"");
                 bot.sendAnswerMessage(response);
-            } else {
+            }
+			else {
 			log.error("Unsupported message type is received: " + update);
             }
 		}
 	}
 	
-	private void describeExercise(String command, Message msg)
-	{
+	private void describeExercise(String command, Message msg) {
 		SendMessage response = new SendMessage();
 		response.setChatId(msg.getChatId().toString());
-		response.setText(bot.getExercises().getExerciseMap().get(Integer.valueOf(command)).getName() + "\n" + bot.getExercises().getExerciseMap().get(Integer.valueOf(command)).getDescription() + "\n\nДобавить упражнение в вашу тренировку?");
+		response.setText(bot.getExercises().getExerciseMap().get(Integer.valueOf(command)).getName() + "\n" +
+				bot.getExercises().getExerciseMap().get(Integer.valueOf(command)).getDescription()
+				+ "\n\nДобавить упражнение в вашу тренировку?");
 		
 		InlineKeyboardMarkup markupInLine = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
@@ -112,20 +118,14 @@ public class UpdateController {
 		}
 		
 	}
-	
-	public void registerUser(Message msg) {
-		//тут должна быть функция, проверяющая зарегестрирован ли уже пользователь
-		//если нет -> позволить зарегестрировваться
-		//если да -> вывести сообщение настройки даты тренировок/возможность начать тренировку прямо сейчас
 
-	}
-	
 	public void viewExercises(Message msg) {
 		  SendMessage sendMessage = new SendMessage();
 		  String helpStr = new String();
 		  sendMessage.setChatId(msg.getChatId());
 		  for (HashMap.Entry<Integer, Exercise> entry : bot.getExercises().getExerciseMap().entrySet()) {
-			  helpStr += "<a href='" + "https://t.me/FitTrackDomovonokBot?start=" + entry.getKey().toString() + "'>" + entry.getValue().getName() + "</a>\n";
+			  helpStr += "<a href='" + "https://t.me/FitTrackDomovonokBot?start=" + entry.getKey().toString() + "'>" 
+					  + entry.getValue().getName() + "</a>\n";
 		  }
 		  sendMessage.setText(helpStr);
 		  sendMessage.enableHtml(true);
@@ -142,8 +142,36 @@ public class UpdateController {
 	}
 	
 	public void viewStat() {
-		//тут должна быть функция, что ищет в базе данных Id чата 
+		//тут должна быть функция, что ищет в базе данных Id чата
 		//и по этому id выводит статистику пользователя из БД
 	}
-	
+
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
+	public void registerUser(Message msg) {
+		String chatId = msg.getChatId().toString();
+		Integer userId;
+		try {
+			userId = jdbcTemplate.queryForObject("SELECT id FROM users WHERE chat_id = ?", 
+					new Object[]{chatId}, Integer.class);
+		}
+		catch (EmptyResultDataAccessException e) {
+			userId = null; // Пользователь не найден
+		}
+
+		if (userId == null) {
+			jdbcTemplate.update("INSERT INTO users (chat_id) VALUES (?)", chatId);
+			SendMessage response = new SendMessage();
+			response.setChatId(chatId);
+			response.setText("Вы успешно зарегистрированы!");
+			bot.sendAnswerMessage(response);
+		}
+		else {
+			SendMessage response = new SendMessage();
+			response.setChatId(chatId);
+			response.setText("Вы уже зарегистрированы!");
+			bot.sendAnswerMessage(response);
+		}
+	}
 }
