@@ -121,7 +121,8 @@ public class UpdateController {
 		  String helpStr = new String();
 		  sendMessage.setChatId(msg.getChatId());
 		  for (HashMap.Entry<Integer, Exercise> entry : bot.getExercises().getExerciseMap().entrySet()) {
-			  helpStr += "<a href='" + "https://t.me/FitTrackDomovonokBot?start=" + entry.getKey().toString() + "'>" + entry.getValue().getName() + "</a>\n";
+			  helpStr.append("<a href='" + "https://t.me/FitTrackDomovonokBot?start=").append(entry.getKey().toString())
+					  .append("'>").append(entry.getValue().getName()).append("</a>\n");
 		  }
 		  sendMessage.setText(helpStr);
 		  sendMessage.enableHtml(true);
