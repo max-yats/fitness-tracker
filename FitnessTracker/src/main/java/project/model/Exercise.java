@@ -11,5 +11,6 @@ public interface Exercise {
 	int getRepetitions();
 	int getWeightPerRep();
 	float getTimeInSeconds();
+	
 	void startExercise(long chatId, FitnessBot bot);
 }
