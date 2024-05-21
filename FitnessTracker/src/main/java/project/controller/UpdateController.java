@@ -70,7 +70,7 @@ public class UpdateController {
 						bot.getExercises().getExerciseMap().get(Integer.valueOf(command)).getDescription()
 							+ "\n\nДобавить упражнение в вашу тренировку?");
 
-		InlineKeyboardMarkup markupInLine = new InlineKeyboardMarkup();
+	InlineKeyboardMarkup markupInLine = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
         List<InlineKeyboardButton> rowInLine = new ArrayList<>();
         InlineKeyboardButton yesButton = new InlineKeyboardButton();
