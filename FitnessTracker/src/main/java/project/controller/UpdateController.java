@@ -18,7 +18,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import project.model.Exercise;
 import project.model.OrdinaryExercise;
 import project.model.WeightExercise;
-// import project.model.TimeExercise;
 
 @Component
 public class UpdateController {
