@@ -1,9 +1,15 @@
 package project.model;
 
-import java.util.concurrent.atomic.AtomicLong;
+import project.controller.FitnessBot;
 
 public interface Exercise {
-	public String getName();
-	public String getDescription();
-	public Integer getExerciseId();
+
+	String getName();
+	String getDescription();
+	Integer getExerciseId();
+	int getSets();
+	int getRepetitions();
+	int getWeightPerRep();
+	float getTimeInSeconds();
+	void startExercise(long chatId, FitnessBot bot);
 }
