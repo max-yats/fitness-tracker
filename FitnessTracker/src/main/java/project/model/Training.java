@@ -12,4 +12,5 @@ public class Training {
 	public static void incrementIdCounter() {
 		idCounter++;
 	}
+	
 }
