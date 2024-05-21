@@ -127,5 +127,3 @@ public class OrdinaryExercise implements Exercise {
 		return 0;
 	}
 }
-
-
