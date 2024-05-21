@@ -1,5 +1,6 @@
 package project.model;
 
+import lombok.Getter;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import project.controller.FitnessBot;
@@ -9,9 +10,13 @@ import java.util.TimerTask;
 
 public class TimeExercise implements Exercise {
     private Integer id;
+    @Getter
     private String name;
+    @Getter
     private String description;
+    @Getter
     private float timeInSeconds;
+    @Getter
     private int sets; // Количество подходов/повторений
     private static int idCounter = 1;
     private boolean isRunning = false;
@@ -81,22 +86,6 @@ public class TimeExercise implements Exercise {
                 throw new RuntimeException(e);
             }
         }
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public int getSets() {
-        return sets;
-    }
-
-    public float getTimeInSeconds() {
-        return timeInSeconds;
     }
 
     public Integer getExerciseId() {

@@ -1,6 +1,9 @@
 package project.model;
+import lombok.Getter;
+
 import java.util.HashMap;
 
+@Getter
 public final class TrainingLibrary extends Training {
 	private HashMap<Integer, Exercise> exerciseMap = new HashMap<>();
 
@@ -21,7 +24,4 @@ public final class TrainingLibrary extends Training {
 		exerciseMap.put(3002, new WeightExercise("Подъём гантели", "Чтоб бицуху качать", 6, 10, 10, 3002));
 	}
 
-	public HashMap<Integer, Exercise> getExerciseMap() {
-		return exerciseMap;
-	}
 }
