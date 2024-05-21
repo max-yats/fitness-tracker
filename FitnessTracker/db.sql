@@ -77,4 +77,5 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.exercises (id, name, description, type)
 VALUES (2001, '{"Бег на месте"}', '{кардиоупражнение,"которое можно выполнять дома","бегая на месте."}', '{Cardio}')
 ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO public.users (exercises, info, chat_id) VALUES (ARRAY[1001, 1002], 'some info', 123456);
