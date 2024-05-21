@@ -11,52 +11,52 @@
 	  <version>2.5.2</version>
   </parent>
   
-  <properties>
-	  <log4j.version>1.2.17</log4j.version>
-	  <telegrambot.starter.version>6.9.7.1</telegrambot.starter.version>
-	  <hibernate.core.version>6.4.4.Final</hibernate.core.version>
-  </properties>
+	<properties>
+		<log4j.version>1.2.17</log4j.version>
+		<telegrambot.starter.version>6.9.7.1</telegrambot.starter.version>
+		<hibernate.core.version>6.4.4.Final</hibernate.core.version>
+	</properties>
   
   <dependencies>
-	  <dependency>
-		  <groupId>org.springframework.boot</groupId>
-		  <artifactId>spring-boot-starter-web</artifactId>
-	  </dependency>
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-web</artifactId>
+	</dependency>
 
-	  <dependency>
-           <groupId>log4j</groupId>
-           <artifactId>log4j</artifactId>
-           <version>${log4j.version}</version>
-      </dependency>
+	<dependency>
+		<groupId>log4j</groupId>
+		<artifactId>log4j</artifactId>
+		<version>${log4j.version}</version>
+	</dependency>
 	  
-	 <dependency>
-        <groupId>org.telegram</groupId>
-        <artifactId>telegrambots-spring-boot-starter</artifactId>
-        <version>${telegrambot.starter.version}</version>
-    </dependency>
+	<dependency>
+		<groupId>org.telegram</groupId>
+		<artifactId>telegrambots-spring-boot-starter</artifactId>
+		<version>${telegrambot.starter.version}</version>
+	</dependency>
 
-      <dependency>
-          <groupId>org.postgresql</groupId>
-          <artifactId>postgresql</artifactId>
-          <version>42.7.3</version>
-      </dependency>
+	<dependency>
+		<groupId>org.postgresql</groupId>
+		<artifactId>postgresql</artifactId>
+		<version>42.7.3</version>
+	</dependency>
 
-    <dependency>
+	<dependency>
 		<groupId>org.hibernate.orm</groupId>
 		<artifactId>hibernate-core</artifactId>
 		<version>${hibernate.core.version}</version>
 	</dependency>
 
-      <dependency>
-          <groupId>org.projectlombok</groupId>
-          <artifactId>lombok</artifactId>
-          <version>1.18.32</version>
-          <scope>provided</scope>
-      </dependency>
+	<dependency>
+		<groupId>org.projectlombok</groupId>
+		<artifactId>lombok</artifactId>
+		<version>1.18.32</version>
+		<scope>provided</scope>
+	</dependency>
 
-      <dependency>
-          <groupId>org.springframework.boot</groupId>
-          <artifactId>spring-boot-starter-jdbc</artifactId>
-      </dependency>
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-jdbc</artifactId>
+	</dependency>
   </dependencies>
 </project>
