@@ -23,5 +23,4 @@ public final class TrainingLibrary extends Training {
 		exerciseMap.put(3001, new WeightExercise("Жим лежа", "Упражнение для развития грудных мышц", 2, 10, 25, 3001));
 		exerciseMap.put(3002, new WeightExercise("Подъём гантели", "Чтоб бицуху качать", 6, 10, 10, 3002));
 	}
-
 }
