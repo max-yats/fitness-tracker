@@ -104,5 +104,4 @@ public class TimeExercise implements Exercise {
     public int getWeightPerRep() {
         return 0;
     }
-
 }
