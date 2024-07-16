@@ -1,26 +1,98 @@
 package project.model;
 import lombok.Getter;
-
+import java.sql.*;
 import java.util.HashMap;
+import java.util.function.BiConsumer;
 
-@Getter
-public final class TrainingLibrary extends Training {
-	private HashMap<Integer, Exercise> exerciseMap = new HashMap<>();
+public final class TrainingLibrary {
+	@Getter
+	private final HashMap<Integer, Exercise> exerciseMap = new HashMap<>();
 
 	public void initialize() {
-		exerciseMap.put(1001, new OrdinaryExercise("Приседания", "упражнение для ног и ягодиц, выполняется, опускаясь в положение, как будто вы садитесь на стул, а затем поднимаетесь.", 3, 20, 1001));
-		exerciseMap.put(1002, new OrdinaryExercise("Подтягивания", "упражнение для верхней части тела, выполняется подтягиванием тела вверх, держась за перекладину.", 2, 5,1002));
-		exerciseMap.put(1003, new OrdinaryExercise("Прыжки на скакалке", "кардиоупражнение, которое также тренирует координацию, выполняется с прыжками через скакалку.", 3, 90, 1003));
-		exerciseMap.put(1004, new OrdinaryExercise("Прыжки в длину", "очень полезное упражнение - мамой клянусь", 1, 10, 1004));
-		exerciseMap.put(1005, new OrdinaryExercise("Махи ногами", "упражнение для ног и ягодиц, выполняется махая ногой вперед и назад.", 3, 20, 1005));
-		exerciseMap.put(1006, new OrdinaryExercise("Лодка", "упражнение для спины и пресса, выполняется, лежа на животе и поднимая туловище и ноги от пола, формируя форму лодки.", 3, 30, 1006));
+		String url = "jdbc:postgresql://localhost:5432/template1";
+		String username = "postgres";
+		String password = "1111";
 
-		exerciseMap.put(2001, new TimeExercise("Планка на прямых руках", "статическая нагрузка мышц груди", 1, 10.0f, 2001));
-		exerciseMap.put(2002, new TimeExercise("Прыжки на скакалке", "кардиоупражнение, которое также тренирует координацию, выполняется с прыжками через скакалку.", 3, 10.0f, 2002));
-		exerciseMap.put(2003, new TimeExercise("Бег на месте", "кардиоупражнение, которое можно выполнять дома, бегая на месте.", 2, 30.0f, 2003));
-		exerciseMap.put(2004, new TimeExercise("Планка", "Упражнение для укрепления кора", 2, 90.0f, 2004));
+		try {
+			Connection connection = DriverManager.getConnection(url, username, password);
 
-		exerciseMap.put(3001, new WeightExercise("Жим лежа", "Упражнение для развития грудных мышц", 2, 10, 25, 3001));
-		exerciseMap.put(3002, new WeightExercise("Подъём гантели", "Чтоб бицуху качать", 6, 10, 10, 3002));
+			// Запрос для обычных упражнений
+			String ordinaryQuery = "SELECT id, name, description, sets, repetitions FROM ordinaryExercise";
+			executeQuery(connection, ordinaryQuery, (id, params) ->
+					exerciseMap.put(id, new OrdinaryExercise(
+							(String) params[1],
+							(String) params[2],
+							(Integer) params[3],
+							(Integer) params[4]
+					))
+			);
+
+			// Запрос для упражнений на время
+			String timeQuery = "SELECT id, name, description, sets, timeInSeconds FROM timeExercise";
+			executeQuery(connection, timeQuery, (id, params) ->
+					exerciseMap.put(id, new TimeExercise(
+							(String) params[1],
+							(String) params[2],
+							(Integer) params[3],
+							(Float) params[4]
+					))
+			);
+
+			// Запрос для упражнений с весом
+			String weightQuery = "SELECT id, name, description, sets, repetitions, weightPerRep FROM weightExercise";
+			executeQuery(connection, weightQuery, (id, params) ->
+					exerciseMap.put(id, new WeightExercise(
+							(String) params[1],
+							(String) params[2],
+							(Integer) params[3],
+							(Integer) params[4],
+							(Float) params[5]
+					))
+			);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void executeQuery(Connection connection, String query, BiConsumer<Integer, Object[]> consumer) throws SQLException {
+		PreparedStatement preparedStatement = connection.prepareStatement(query);
+		ResultSet resultSet = preparedStatement.executeQuery();
+
+		while (resultSet.next()) {
+			Object[] params = null;
+			switch (query) {
+				case "SELECT id, name, description, sets, repetitions FROM ordinaryExercise":
+					params = new Object[]{
+							resultSet.getInt("id"),
+							resultSet.getString("name").substring(1, resultSet.getString("name").length() - 1).replaceAll("\"", ""),
+							resultSet.getString("description").substring(2, resultSet.getString("description").length() - 2).replaceAll("\"", ""),
+							resultSet.getInt("sets"),
+							resultSet.getInt("repetitions")
+					};
+					break;
+				case "SELECT id, name, description, sets, timeInSeconds FROM timeExercise":
+					params = new Object[]{
+							resultSet.getInt("id"),
+							resultSet.getString("name").substring(1, resultSet.getString("name").length() - 1).replaceAll("\"", ""),
+							resultSet.getString("description").substring(2, resultSet.getString("description").length() - 2).replaceAll("\"", ""),
+							resultSet.getInt("sets"),
+							resultSet.getFloat("timeInSeconds")
+					};
+					break;
+				case "SELECT id, name, description, sets, repetitions, weightPerRep FROM weightExercise":
+					params = new Object[]{
+							resultSet.getInt("id"),
+							resultSet.getString("name").substring(1, resultSet.getString("name").length() - 1).replaceAll("\"", ""),
+							resultSet.getString("description").substring(2, resultSet.getString("description").length() - 2).replaceAll("\"", ""),
+							resultSet.getInt("sets"),
+							resultSet.getInt("repetitions"),
+							resultSet.getFloat("weightPerRep")
+					};
+					break;
+			}
+			if (params!= null) {
+				consumer.accept(resultSet.getInt("id"), params);
+			}
+		}
 	}
 }
