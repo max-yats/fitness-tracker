@@ -19,6 +19,7 @@ public class TimeExercise implements Exercise {
     @Getter
     private int sets; // Количество подходов/повторений
     private static int idCounter = 1;
+    @Getter
     private boolean isRunning = false;
 
     public TimeExercise(String name, String description, int sets, float timeInSeconds) {
@@ -37,28 +38,49 @@ public class TimeExercise implements Exercise {
         this.sets = sets;
         this.timeInSeconds = timeInSeconds;
     }
+
     public void startExercise(long chatId, FitnessBot bot) {
+
         try {
             Timer timer = new Timer();
             final int[] currentSet = {1}; // Переменная для отслеживания текущего подхода
+            try {
+                SendMessage startMessage = new SendMessage();
+                startMessage.setChatId(String.valueOf(chatId));
+                startMessage.setText("Начало упражнения: " + name);
+                bot.execute(startMessage);
+            }
+            catch (TelegramApiException e) {
+                throw new RuntimeException(e);
+            }
 
             // Запуск одного подхода
             Runnable singleSetRunnable = () -> {
                 if (currentSet[0] <= sets) {
-                    System.out.println("Выполнение подхода №" + currentSet[0]);
-                    currentSet[0]++;
-
-                    // Отправляем сообщение по завершении текущего подхода
                     SendMessage response = new SendMessage();
                     response.setChatId(String.valueOf(chatId));
-                    response.setText("Время подхода №" + (currentSet[0] - 1) + " завершено.");
+                    response.setText("Выполнение подхода №" + currentSet[0]);
+                    System.out.println("Выполнение подхода №" + currentSet[0]);
+                    bot.sendAnswerMessage(response);
 
+                    // Добавляем задержку перед следующим сообщением
+                    try {
+                        Thread.sleep((long) timeInSeconds * 1000); // Задержка в миллисекундах
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                    currentSet[0]++;
+                    response.setText("Время подхода №" + (currentSet[0] - 1) + " завершено.");
                     bot.sendAnswerMessage(response);
                 }
             };
 
-            // Здапуск нескольких подходов
-            for (int i = 0; i < sets; i++) {
+            // Запуск первого подхода немедленно
+            singleSetRunnable.run();
+
+            // Запуск оставшихся подходов с задержкой
+            for (int i = 1; i < sets; i++) {
                 long delay = (i + 1) * (long) timeInSeconds * 1000; // Время в мс
                 timer.schedule(new TimerTask() {
                     @Override
@@ -67,24 +89,23 @@ public class TimeExercise implements Exercise {
                     }
                 }, delay);
             }
-        } catch (Exception e) {
+        }
+
+        catch (Exception e) {
             System.err.println("An unexpected error occurred:");
             e.printStackTrace();
         }
     }
 
     public void stopExercise(long chatId, FitnessBot bot) {
-        if (isRunning) {
-            isRunning = false;
-            try {
-                SendMessage stopMessage = new SendMessage();
-                stopMessage.setChatId(String.valueOf(chatId));
-                stopMessage.setText("Упражнение " + name + " досрочно завершено");
-                bot.execute(stopMessage);
-            }
-            catch (TelegramApiException e) {
-                throw new RuntimeException(e);
-            }
+        isRunning = false;
+        try {
+            SendMessage stopMessage = new SendMessage();
+            stopMessage.setChatId(String.valueOf(chatId));
+            stopMessage.setText("Упражнение " + name + " досрочно завершено");
+            bot.execute(stopMessage);
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -101,7 +122,7 @@ public class TimeExercise implements Exercise {
         return 0;
     }
 
-    public int getWeightPerRep() {
+    public float getWeightPerRep() {
         return 0;
     }
 }
