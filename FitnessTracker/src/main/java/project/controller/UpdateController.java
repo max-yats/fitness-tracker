@@ -5,105 +5,114 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.*;
+import java.io.*;
+import project.model.*;
+
 import org.apache.log4j.Logger;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.springframework.jdbc.core.RowMapper;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import project.model.Exercise;
-import project.model.OrdinaryExercise;
-import project.model.WeightExercise;
+import javax.print.DocFlavor;
+
 
 @Component
 public class UpdateController {
 
 	private FitnessBot bot;
-	private Map<Long, OrdinaryExercise> activeOrdinaryExercises = new HashMap<>();
-
-	private Map<Long, WeightExercise> activeWeightExercises = new HashMap<>();
+	private Map<Long, Queue<Exercise>> activeExercises = new HashMap<>();
 
 	private static final Logger log = org.apache.log4j.Logger.getLogger(FitnessBot.class);
 
 	public void registerBot(FitnessBot bot) {
         this.bot = bot;
-        }
+	}
 
 	public void processUpdate(Update update) {
 		if (update == null) {
 			log.error("Received update is null");
-            return;
+			return;
 		}
 
 		if (update.hasMessage()) {
 			defineCommand(update.getMessage());
 		}
 		else if (update.hasCallbackQuery()) {
-            String callbackData = update.getCallbackQuery().getData();
+			String callbackData = update.getCallbackQuery().getData();
 
-            SendMessage response = new SendMessage();
+			if (callbackData.contains("YES_BUTTON")) {
+				log.debug(callbackData.toString());
+				addExerciseToTraining(update, callbackData);
+			}
+			else if (callbackData.contains("NO_BUTTON")) {
+				DeleteMessage deleteMessage = new DeleteMessage();
+				deleteMessage.setChatId(update.getCallbackQuery().getMessage().getChatId());
+				deleteMessage.setMessageId(update.getCallbackQuery().getMessage().getMessageId());
+				try {
+					bot.execute(deleteMessage);
+				} catch (TelegramApiException e) {
+					log.error("Cannot delete message: " + update.getCallbackQuery().getData());
+				}
+			}
+			else if (callbackData.contains("START_BUTTON")) {
+				Long chatId = update.getCallbackQuery().getMessage().getChatId();
 
-            if (callbackData.equals("YES_BUTTON")) {
-            	response.setText("(Тестовое) Вы нажали \"да\"");
-            	response.setChatId(update.getCallbackQuery().getMessage().getChatId());
-                bot.sendAnswerMessage(response);
-            }
-            else if (callbackData.equals("NO_BUTTON")) {
-            	response.setChatId(update.getCallbackQuery().getMessage().getChatId());
-            	response.setText("(Тестовое) Вы нажали \"нет\"");
-                bot.sendAnswerMessage(response);
-            }
+				String sql = "SELECT exercises FROM users WHERE chat_id = ?";
+
+				List<Integer> exerciseIds = jdbcTemplate.queryForObject(sql, new Object[]{chatId}, new RowMapper<List<Integer>>() {
+					@Override
+					public List<Integer> mapRow(ResultSet rs, int rowNum) throws SQLException {
+						Integer[] exercises = (Integer[]) rs.getArray("exercises").getArray();
+						return Arrays.asList(exercises);
+					}
+				});
+
+				Queue<Exercise> exercises = new LinkedList<>();
+				for (Integer exerciseId : exerciseIds) {
+					exercises.add(bot.getExercises().getExerciseMap().get(exerciseId));
+				}
+				exercises.peek().startExercise(chatId, bot);
+				activeExercises.put(chatId, exercises);
+			}
 			else {
-			log.error("Unsupported message type is received: " + update);
-            }
+				log.error("Unsupported message type is received: " + update.getCallbackQuery().getData());
+			}
 		}
 	}
 
-	private void describeExercise(String command, Message msg) {
-		SendMessage response = new SendMessage();
-		response.setChatId(msg.getChatId().toString());
-		response.setText(bot.getExercises().getExerciseMap().get(Integer.valueOf(command)).getName() + "\n" +
-						bot.getExercises().getExerciseMap().get(Integer.valueOf(command)).getDescription()
-							+ "\n\nДобавить упражнение в вашу тренировку?");
-
-	InlineKeyboardMarkup markupInLine = new InlineKeyboardMarkup();
-        List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
-        List<InlineKeyboardButton> rowInLine = new ArrayList<>();
-        InlineKeyboardButton yesButton = new InlineKeyboardButton();
-
-        yesButton.setText("Да");
-        yesButton.setCallbackData("YES_BUTTON");
-
-        InlineKeyboardButton noButton = new InlineKeyboardButton();
-
-        noButton.setText("Нет");
-        noButton.setCallbackData("NO_BUTTON");
-
-        rowInLine.add(yesButton);
-        rowInLine.add(noButton);
-
-        rowsInLine.add(rowInLine);
-
-        markupInLine.setKeyboard(rowsInLine);
-        response.setReplyMarkup(markupInLine);
-
-		bot.sendAnswerMessage(response);
-		log.debug(msg.getText());
-	}
-
+	// Список команд, с помощью которых можно взаимодействовать с ботом
 	private void defineCommand(Message msg) {
 		String command = msg.getText();
 
 		if (command.startsWith("/start ")) {
 			command = command.replaceAll("/start ", "");
 			describeExercise(command, msg);
-		} else if (command.startsWith("/startExercise")) {
+		} 
+		else if (command.startsWith("/start_exercise")) {
 			startExercise(command, msg);
-		} else {
+		}
+		else if (command.startsWith("/create_exercise")) {
+			createExercise(command, msg);
+		}
+		else if (command.startsWith("/delete_exercise")) {
+			deleteExercise(command, msg);
+		}
+		else {
 			switch (command) {
 				case "/start":
 					sendWelcomeMessage(msg);
@@ -114,26 +123,19 @@ public class UpdateController {
 				case "/tren":
 					viewExercises(msg);
 					break;
-				case "/test":
-					testOutput(msg);
-					break;
-				case "/stat":
-					viewStat(msg);
-					break;
 				case "/delete":
 					confirmAccountDeletion(msg);
 					break;
 				case "ПОДТВЕРДИТЬ УДАЛЕНИЕ":
 					deleteUser(msg);
 					break;
-				case "/stop":
+				case "/stop_exercise":
 					stopExercise(msg);
 					break;
-				case "/finishSet":
+				case "/finish_set":
 					finishSet(msg);
 					break;
 				default:
-					// Обработка неизвестной команды
 					SendMessage response = new SendMessage();
 					response.setChatId(msg.getChatId().toString());
 					response.setText("Неизвестная команда. Попробуйте снова.");
@@ -144,88 +146,125 @@ public class UpdateController {
 	}
 
 	private void sendWelcomeMessage(Message msg) {
-		System.out.println("Метод sendWelcomeMessage (/start) вызван");
+		Long chatId = msg.getChatId();
 
 		SendMessage response = new SendMessage();
-		response.setChatId(msg.getChatId().toString());
-		response.setText("Привет! Я бот для контроля за спортивными результатами в тренировках. " +
-				"Отправьте команду /tren, чтобы посмотреть доступные упражнения.");
-		bot.sendAnswerMessage(response);
-	}
+		response.setChatId(chatId);
 
-	public void viewExercises(Message msg) {
-		System.out.println("Метод viewExercises (/tren) вызван");
+		List<Long> userIds = jdbcTemplate.queryForList("SELECT id FROM users WHERE chat_id =?", new Object[]{chatId}, Long.class);
 
-		SendMessage sendMessage = new SendMessage();
-		  StringBuilder helpStr = new StringBuilder(new String());
-		  sendMessage.setChatId(msg.getChatId());
-		  for (HashMap.Entry<Integer, Exercise> entry : bot.getExercises().getExerciseMap().entrySet()) {
-			  helpStr.append("<a href='" + "https://t.me/FitTrackDomovonokBot?start=").append(entry.getKey().toString())
-					  .append("'>").append(entry.getValue().getName()).append("</a>\n");
-		  }
-		  sendMessage.setText(helpStr.toString());
-		  sendMessage.enableHtml(true);
-		  bot.sendAnswerMessage(sendMessage);
-		  log.debug(msg.getText());
-	}
-
-	public void testOutput(Message msg) {
-		System.out.println("Метод testOutput (/test) вызван");
-		SendMessage response = new SendMessage();
-		response.setChatId(msg.getChatId().toString());
-		response.setText("Тестовое сообщение - Цой жив");
-		bot.sendAnswerMessage(response);
-		log.debug(msg.getText());
-	}
-
-	public void viewStat(Message msg) {
-		String chatIdStr = msg.getChatId().toString();
-		Long chatId = Long.parseLong(chatIdStr);
-
-		String sql = "SELECT exercises, info FROM users WHERE chat_id =?";
-
-		try {
-			List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, chatId);
-
-			if (!results.isEmpty()) {
-				Map<String, Object> result = results.get(0);
-				Integer[] exercises = (Integer[]) result.get("exercises");
-				String info = (String) result.get("info");
-
-				StringBuilder statMessage = new StringBuilder("Ваша статистика:\n");
-				statMessage.append("Информация: ").append(info).append("\n");
-				statMessage.append("Выполненные упражнения: \n");
-
-				for (Integer exerciseId : exercises) {
-					// Здесь можно добавить дополнительный запрос для получения названия упражнения по ID
-					// Для примера просто выводим ID упражнения
-					statMessage.append("- Упражнение ID: ").append(exerciseId).append("\n");
-				}
-
-				SendMessage response = new SendMessage();
-				response.setChatId(chatIdStr);
-				response.setText(statMessage.toString());
-				bot.sendAnswerMessage(response);
-			}
-			else {
-				SendMessage response = new SendMessage();
-				response.setChatId(chatIdStr);
-				response.setText("Статистика не найдена.");
-				bot.sendAnswerMessage(response);
-			}
-		}
-		catch (Exception e) {
-			log.error("Ошибка при получении статистики пользователя: " + e.getMessage());
-			SendMessage response = new SendMessage();
-			response.setChatId(chatIdStr);
-			response.setText("Произошла ошибка при получении статистики.");
+		if (userIds.isEmpty()) {
+			response.setText("Привет! Я бот для контроля за спортивными результатами в тренировках. " +
+					"Отправьте команду /tren, чтобы посмотреть доступные упражнения.");
 			bot.sendAnswerMessage(response);
 		}
+		else {
+			String text = new String();
+			text = "Хотите начать тренировку?\nВаша тренировка состоит из:\n";
+
+			String sql = "SELECT exercises FROM users WHERE chat_id = ?";
+
+			List<Integer> exerciseIds = jdbcTemplate.queryForObject(sql, new Object[]{chatId}, new RowMapper<List<Integer>>() {
+				@Override
+				public List<Integer> mapRow(ResultSet rs, int rowNum) throws SQLException {
+					Integer[] exercises = (Integer[]) rs.getArray("exercises").getArray();
+					return Arrays.asList(exercises);
+				}
+			});
+
+			for (Integer Id: exerciseIds) {
+				text += bot.getExercises().getExerciseMap().get(Id).getName().toString() + "\n";
+			}
+			response.setText(text);
+
+			InlineKeyboardMarkup markupInLine = new InlineKeyboardMarkup();
+			List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
+			InlineKeyboardButton startButton = new InlineKeyboardButton();
+
+			startButton.setText("Начать сейчас");
+			startButton.setCallbackData("START_BUTTON");
+
+			InlineKeyboardButton timeButton = new InlineKeyboardButton();
+			timeButton.setText("Начать в заданное время");
+			timeButton.setCallbackData("TIME_BUTTON");
+
+			InlineKeyboardButton noButton = new InlineKeyboardButton();
+
+			noButton.setText("Отмена");
+			noButton.setCallbackData("NO_BUTTON");
+
+			rowsInLine.add(new ArrayList<InlineKeyboardButton>(Collections.singletonList(startButton)));
+			rowsInLine.add(new ArrayList<InlineKeyboardButton>(Collections.singletonList(timeButton)));
+			rowsInLine.add(new ArrayList<InlineKeyboardButton>(Collections.singletonList(noButton)));
+
+			markupInLine.setKeyboard(rowsInLine);
+			response.setReplyMarkup(markupInLine);
+			bot.sendAnswerMessage(response);
+		}
+
+	}
+
+	private void viewExercises(Message msg) {
+		SendMessage sendMessage = new SendMessage();
+		String helpStr = new String();
+		sendMessage.setChatId(msg.getChatId());
+		for (HashMap.Entry<Integer, Exercise> entry : bot.getExercises().getExerciseMap().entrySet()) {
+			helpStr += "<a href='" + "https://t.me/FitTrackDomovonokBot?start=" + entry.getKey().toString() + "'>"
+					+ entry.getValue().getName() + "</a>\n";
+		}
+
+		sendMessage.setText(helpStr);
+		sendMessage.enableHtml(true);
+		bot.sendAnswerMessage(sendMessage);
+		log.debug(msg.getText());
+	}
+	private void describeExercise(String command, Message msg) {
+		SendMessage response = new SendMessage();
+		String text = new String();
+		text = bot.getExercises().getExerciseMap().get(Integer.valueOf(command)).getName() + "\n";
+		text += bot.getExercises().getExerciseMap().get(Integer.valueOf(command)).getDescription() + "\n\nДобавить упражнение в вашу тренировку?";
+		response.setChatId(msg.getChatId().toString());
+		response.setText(text);
+
+		InlineKeyboardMarkup markupInLine = new InlineKeyboardMarkup();
+		List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
+		List<InlineKeyboardButton> rowInLine = new ArrayList<>();
+		InlineKeyboardButton yesButton = new InlineKeyboardButton();
+
+		yesButton.setText("Да");
+		yesButton.setCallbackData("YES_BUTTON" + command);
+
+		InlineKeyboardButton noButton = new InlineKeyboardButton();
+
+		noButton.setText("Нет");
+		noButton.setCallbackData("NO_BUTTON");
+
+		rowInLine.add(yesButton);
+		rowInLine.add(noButton);
+
+		rowsInLine.add(rowInLine);
+
+		markupInLine.setKeyboard(rowsInLine);
+		response.setReplyMarkup(markupInLine);
+
+		DeleteMessage deleteMessage = new DeleteMessage();
+		deleteMessage.setChatId(msg.getChatId());
+		deleteMessage.setMessageId(msg.getMessageId());
+
+		try {
+			bot.execute(deleteMessage);
+		}
+		catch (TelegramApiException e) {
+			log.error("Cannot delete message: " + msg);
+		}
+
+		bot.sendAnswerMessage(response);
 	}
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
+	// Регистрация пользователя - заносит человека в базу данных
 	public void registerUser(Message msg) {
 		System.out.println("Метод registerUser (/register) вызван");
 		log.debug(msg.getText());
@@ -240,19 +279,18 @@ public class UpdateController {
 			jdbcTemplate.update("INSERT INTO users (chat_id) VALUES (?)", chatId);
 			SendMessage response = new SendMessage();
 			response.setChatId(chatIdStr);
-			//response.setText("Регистрация прошла успешно!");
-			response.setText("Счастилового путешествия в Казахстан!");
+			response.setText("Регистрация прошла успешно!");
 			bot.sendAnswerMessage(response);
 		}
 		else {
 			SendMessage response = new SendMessage();
 			response.setChatId(chatIdStr);
-			//response.setText("Вы уже зарегистрированы!");
-			response.setText("АMOGUS!");
+			response.setText("Вы уже зарегистрированы!");
 			bot.sendAnswerMessage(response);
 		}
 	}
 
+	// Потверждение удаления (удаляет аккаунт только после ввода кодовой фразы)
 	private void confirmAccountDeletion(Message msg) {
 		System.out.println("Метод confirmAccountDeletion вызван");
 		log.debug(msg.getText());
@@ -273,11 +311,11 @@ public class UpdateController {
 		jdbcTemplate.update("DELETE FROM users WHERE chat_id =?", chatId);
 		SendMessage response = new SendMessage();
 		response.setChatId(chatIdStr);
-		//response.setText("Ваш аккаунт был успешно удалён.");
-		response.setText("Попутного ветра!");
+		response.setText("Ваш аккаунт был успешно удалён.");
 		bot.sendAnswerMessage(response);
 	}
 
+	// Начать упражнение из заготовленного списка
 	private void startExercise(String command, Message msg) {
 		System.out.println("Метод startExercise (/startExercise [id упражнения]) вызван");
 		log.debug(msg.getText());
@@ -287,27 +325,27 @@ public class UpdateController {
 				throw new NumberFormatException("Invalid command format");
 			}
 			int exerciseId = Integer.parseInt(parts[1]);
-			Exercise exercise = bot.getExercises().getExerciseMap().get(exerciseId);
-			if (exercise!= null) {
-				if (exercise instanceof OrdinaryExercise) {
-					activeOrdinaryExercises.put(msg.getChatId(), (OrdinaryExercise) exercise);
-					System.out.println("Обычное упражнение добавлено в activeExercises для чата: " + msg.getChatId());
-					exercise.startExercise(msg.getChatId(), bot);
-				} else if (exercise instanceof WeightExercise) {
-					activeWeightExercises.put(msg.getChatId(), (WeightExercise) exercise);
-					System.out.println("Упражнение с весом добавлено в activeWeightExercises для чата: " + msg.getChatId());
-					exercise.startExercise(msg.getChatId(), bot);
+			Exercise startedExercise = bot.getExercises().getExerciseMap().get(exerciseId);
+			if (startedExercise!= null) {
+				if (activeExercises.get(msg.getChatId()) == null) {
+					activeExercises.put(msg.getChatId(), new LinkedList<Exercise>());
 				}
-			} else {
+				activeExercises.get(msg.getChatId()).add(startedExercise);
+				System.out.println(startedExercise.getClass().toString() + " упражнение добавлено в activeExercises для чата: " + msg.getChatId());
+				startedExercise.startExercise(msg.getChatId(), bot);
+			}
+			else {
 				throw new IllegalArgumentException("Exercise not found");
 			}
-		} catch (NumberFormatException e) {
+		}
+		catch (NumberFormatException e) {
 			log.error("Invalid exercise ID format: " + e.getMessage());
 			SendMessage response = new SendMessage();
 			response.setChatId(msg.getChatId().toString());
-			response.setText("Неверный формат команды. Используйте: /startExercise <exerciseId>");
+			response.setText("Неверный формат команды. Используйте: /startExercise <ID упражнения>");
 			bot.sendAnswerMessage(response);
-		} catch (IllegalArgumentException e) {
+		}
+		catch (IllegalArgumentException e) {
 			log.error("Error starting exercise: " + e.getMessage());
 			SendMessage response = new SendMessage();
 			response.setChatId(msg.getChatId().toString());
@@ -316,45 +354,190 @@ public class UpdateController {
 		}
 	}
 
+	// Завершить текущий подход выполняемого упражнения
 	private void finishSet(Message msg) {
 		System.out.println("Метод finishSet (/finishSet) вызван");
 		log.debug(msg.getText());
 
 		long chatId = msg.getChatId();
-		OrdinaryExercise ordinaryExercise = activeOrdinaryExercises.get(chatId);
-		WeightExercise weightExercise = activeWeightExercises.get(chatId);
+		Exercise currentExercise = activeExercises.get(chatId).peek();
+
 		SendMessage response = new SendMessage();
 
-		if (ordinaryExercise!= null) {
+		if (currentExercise!= null && currentExercise.getClass().equals(OrdinaryExercise.class)) {
 			System.out.println("Текущий подход для обычного упражнения из чата " + chatId + " завершено");
-			ordinaryExercise.finishSet(chatId, bot);
-		} else if (weightExercise!= null) {
+			((OrdinaryExercise) currentExercise).finishSet(chatId, bot);
+		}
+		else if (currentExercise!= null && currentExercise.getClass().equals(WeightExercise.class)) {
 			System.out.println("Текущий подход для упражнения с весом из чата " + chatId + " завершено");
-			weightExercise.finishSet(chatId, bot);
-		} else {
+			((WeightExercise) currentExercise).finishSet(chatId, bot);
+		}
+		else {
 			response.setText("Упражнение не запущено.");
 			System.out.println("Активное упражнение из чата " + chatId + " не найдено");
 			bot.sendAnswerMessage(response);
 		}
+
+		if (!currentExercise.isRunning()) {
+			activeExercises.get(chatId).remove();
+			if (activeExercises.get(chatId).peek() != null) {
+				activeExercises.get(chatId).peek().startExercise(chatId, bot);
+			} else {
+				response.setText("ПОЗДРАВЛЯЕМ! ВЫ ЗАВЕРШИЛИ ТРЕНИРОВКУ!");
+				System.out.println("Тренировка пользователя " + chatId + " завершена");
+				bot.sendAnswerMessage(response);
+			}
+		}
 	}
 
+	// Досрочно завершить упражнение
 	private void stopExercise(Message msg) {
 		System.out.println("Метод stopExercise (/stop) вызван");
 		log.debug(msg.getText());
 
 		long chatId = msg.getChatId();
-		OrdinaryExercise ordinaryExercise = activeOrdinaryExercises.remove(chatId);
-		WeightExercise weightExercise = activeWeightExercises.remove(chatId);
+		Exercise stopedExercise = activeExercises.get(chatId).remove();
 
-		if (ordinaryExercise!= null) {
-			ordinaryExercise.stopExercise(chatId, bot);
+		if (stopedExercise != null) {
+			stopedExercise.stopExercise(chatId, bot);
 			System.out.println("Обычное упражнение остановлено и удалено из activeOrdinaryExercises для чата: " + chatId);
-		} else if (weightExercise!= null) {
-			weightExercise.stopExercise(chatId, bot);
-			System.out.println("Упражнение с весом остановлено и удалено из activeWeightExercises для чата: " + chatId);
-		} else {
+		}
+		else {
 			System.out.println("Активное упражнение из чата: " + chatId + " не найдено");
 		}
 	}
-}
 
+	// export to CSV
+	private void exportToCSV(Long chatId, List<Map<String, Object>> results) {
+		String fileName = "Статистика_" + chatId + ".csv";
+		try (FileWriter writer = new FileWriter(fileName)) {
+			writer.write("Упражнение ID,Информация\n");
+			for (Map<String, Object> row : results) {
+				Integer[] exercises = (Integer[]) row.get("exercises");
+				String info = (String) row.get("info");
+
+				for (Integer exerciseId : exercises) {
+					writer.write(exerciseId + "," + info + "\n");
+				}
+			}
+			System.out.println("Статистика экспортирован в CSV успешно!");
+		} catch (IOException e) {
+			log.error("Произошла ошибка при экспорте статистики в CSV: " + e.getMessage());
+		}
+	}
+
+	// export to XLS
+	private void exportToXLS(Long chatId, List<Map<String, Object>> results) throws IOException {
+		String fileName = "Статистика_" + chatId + ".xlsx";
+		Workbook workbook = new XSSFWorkbook();
+		Sheet sheet = workbook.createSheet("Статистика");
+
+		Row headerRow = sheet.createRow(0);
+		Cell headerCell = headerRow.createCell(0);
+		headerCell.setCellValue("Упражнение ID");
+		headerCell = headerRow.createCell(1);
+		headerCell.setCellValue("Информация");
+
+		int rowNum = 1;
+		for (Map<String, Object> row : results) {
+			Integer[] exercises = (Integer[]) row.get("exercises");
+			String info = (String) row.get("info");
+
+			Row dataRow = sheet.createRow(rowNum++);
+			for (int i = 0; i < exercises.length; i++) {
+				Cell cell = dataRow.createCell(i);
+				cell.setCellValue(exercises[i]);
+			}
+			dataRow.getCell(dataRow.getLastCellNum() - 1).setCellValue(info);
+		}
+
+		try (FileOutputStream outputStream = new FileOutputStream(fileName)) {
+			workbook.write(outputStream);
+		} finally {
+			workbook.close();
+		}
+
+		System.out.println("Статистика экспортирована в XLS успешно!");
+	}
+
+	//YES_BUTTON implementation
+	private void addExerciseToTraining(Update update, String callbackData) {
+		Long chatId = update.getCallbackQuery().getMessage().getChatId();
+
+		SendMessage response = new SendMessage();
+		response.setChatId(chatId);
+
+		List<Long> userIds = jdbcTemplate.queryForList("SELECT id FROM users WHERE chat_id =?", new Object[]{chatId}, Long.class);
+
+		if (!userIds.isEmpty()) {
+			Integer exerciseId = Integer.valueOf(callbackData.substring(callbackData.length()-4));
+			Exercise exercise;
+			Boolean isExerciseInTraining;
+
+			try {
+				exercise = bot.getExercises().getExerciseMap().get(exerciseId);
+				isExerciseInTraining = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users WHERE chat_id = ? AND ? = ANY(exercises)", Boolean.class, chatId, exerciseId);
+			}
+			catch (NullPointerException e) {
+				exercise = null;
+				isExerciseInTraining = false;
+			}
+
+			if (exercise == null) {
+				log.error("Exercise " + exerciseId.toString() + " not found");
+			}
+			else if (isExerciseInTraining) {
+				response.setText("Это упражнение уже присутствует в вашей тренировке.");
+				bot.sendAnswerMessage(response);
+			}
+			else {
+				jdbcTemplate.update("UPDATE users SET exercises = array_append(exercises, ?) WHERE chat_id = ?", exerciseId, chatId);
+				response.setText("Теперь это упражнение в вашей тренировке.");
+				bot.sendAnswerMessage(response);
+			}
+		}
+		else {
+			response.setText("Зарегестрируйтесь (/register), чтобы добавлять упражнения.");
+			response.enableHtml(true);
+			bot.sendAnswerMessage(response);
+		}
+	}
+
+	// CRUD Region
+	private void createExercise(String command, Message msg)
+	{
+		Long chatId = msg.getChatId();
+		SendMessage response = new SendMessage();
+		System.out.println("Метод createExercise (/create_exercise,[Название,Описание]) вызван");
+		log.debug(msg.getText());
+
+		String[] parts = command.split(",");
+		String name = parts[1];
+		String description = parts[2];
+		String type = "Flexible";
+		String sql="INSERT INTO exercises (name,description, type) VALUES (?,?,?)";
+		jdbcTemplate.update(sql, name, description, type);
+		response.setChatId(chatId);
+		response.setText("Добавлено упражнение " + name + " " + description + " " + type);
+		bot.sendAnswerMessage(response);
+	}
+
+	private void deleteExercise(String command, Message msg)
+	{
+		Long chatId = msg.getChatId();
+		SendMessage response = new SendMessage();
+		System.out.println("Метод deleteExercise (/delete_exercise,[Название]) вызван");
+		log.debug(msg.getText());
+
+		String[] parts = command.split(",");
+		String name = parts[1];
+
+		String sql = "DELETE FROM exercises WHERE name = ?";
+		jdbcTemplate.update(sql, name);
+		response.setChatId(chatId);
+		response.setText("Упражнение удалено");
+		bot.sendAnswerMessage(response);
+
+	}
+
+}
