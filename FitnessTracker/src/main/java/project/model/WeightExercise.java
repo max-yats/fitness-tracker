@@ -12,17 +12,18 @@ public class WeightExercise implements Exercise {
     @Getter
     private String description;
     @Getter
-    private int weightPerRep; //Вес, используемый за 1 повторение
+    private float weightPerRep; //Вес, используемый за 1 повторение
     @Getter
     private int sets; // Количество подходов
     @Getter
     private int repetitions; // Количество повторений
     private static int idCounter = 1;
     private int currentSet = 0;
+    @Getter
     private boolean isRunning = false; // Статус выполнения упражнения
 
 
-    public WeightExercise(String name, String description, int sets, int repetitions, int weightPerRep) {
+    public WeightExercise(String name, String description, int sets, int repetitions, float weightPerRep) {
         this.name = name;
         this.description = description;
         this.sets = sets;
@@ -32,7 +33,7 @@ public class WeightExercise implements Exercise {
         generateId();
     }
 
-    public WeightExercise(String name, String description, int sets, int repetitions, int weightPerRep, int id) {
+    public WeightExercise(String name, String description, int sets, int repetitions, float weightPerRep, int id) {
         this.name = name;
         this.description = description;
         this.sets = sets;
