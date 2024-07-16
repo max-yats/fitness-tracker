@@ -102,9 +102,9 @@ public class OrdinaryExercise implements Exercise {
 		}
 	}
 
-//	public boolean isRunning() {
-//		return isRunning;
-//	}
+	public boolean isRunning() {
+		return isRunning;
+	}
 
 	public void setIsRunning(boolean running) {
 		isRunning = running;
@@ -123,7 +123,7 @@ public class OrdinaryExercise implements Exercise {
 		return 0;
 	}
 
-	public int getWeightPerRep() {
+	public float getWeightPerRep() {
 		return 0;
 	}
 }
