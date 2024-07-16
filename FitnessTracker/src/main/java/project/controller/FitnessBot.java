@@ -1,6 +1,9 @@
 package project.controller;
+import project.model.*;
 
 import lombok.Getter;
+import org.apache.log4j.Logger;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -9,19 +12,18 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import project.model.*;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
+
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.PostConstruct;
-import org.apache.log4j.Logger;
 
 @Component
 public class FitnessBot extends TelegramLongPollingBot {
 	@Value("${bot.name}")
-	private String name = "FitTrackDomovonokBot";
+	private String name;
 	@Value("${bot.token}")
-	private String token = "7033585733:AAGXgDOBCO3R9lz2XX1HVVGOWR_hcfThNds";
+	private String token;
 
 	private final UpdateController controller;
 
@@ -38,18 +40,18 @@ public class FitnessBot extends TelegramLongPollingBot {
         	listOfCommands.add(new BotCommand("/start", "запустить фитнес-трекер"));
 		listOfCommands.add(new BotCommand("/register", "зарегистрироваться"));
         	listOfCommands.add(new BotCommand("/tren", "вывод списка доступных упражнений"));
-        	listOfCommands.add(new BotCommand("/test", "тестовая команда"));
-        	listOfCommands.add(new BotCommand("/stat", "ваша статистика"));
-		listOfCommands.add(new BotCommand("/startExercise", "начать упражнение"));
-		listOfCommands.add(new BotCommand("/finishSet", "закончить подход"));
-		listOfCommands.add(new BotCommand("/stop", "досрочно завершить упражнение"));
-
+		listOfCommands.add(new BotCommand("/start_exercise", "начать упражнение"));
+		listOfCommands.add(new BotCommand("/finish_set", "закончить подход"));
+		listOfCommands.add(new BotCommand("/stop_exercise", "досрочно завершить упражнение"));
+		listOfCommands.add(new BotCommand("/create_exercise", "создать упражнение"));
+		listOfCommands.add(new BotCommand("/update_exercise", "изменить упражнение"));
+		listOfCommands.add(new BotCommand("/delete_exercise", "удалить упражнение"));
 		try {
-            this.execute(new SetMyCommands(listOfCommands, new BotCommandScopeDefault(), null));
-        }
+            		this.execute(new SetMyCommands(listOfCommands, new BotCommandScopeDefault(), null));
+        	}
 		catch (TelegramApiException e) {
-            log.error("Error setting bot's command list: " + e.getMessage());
-        }
+            		log.error("Error setting bot's command list: " + e.getMessage());
+        	}
 	}
 
 	@PostConstruct
@@ -77,7 +79,7 @@ public class FitnessBot extends TelegramLongPollingBot {
             try {
                 execute(message);
             }
-	    catch (TelegramApiException e) {
+			catch (TelegramApiException e) {
                 log.error(e);
             }
         }
